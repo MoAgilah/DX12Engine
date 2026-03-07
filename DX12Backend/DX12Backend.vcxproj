@@ -25,9 +25,11 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Code\Core\DX12Framework.h" />
+    <ClInclude Include="Code\Renderer\Win32Window.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Code\Core\DX12Framework.cpp" />
+    <ClCompile Include="Code\Renderer\Win32Window.cpp" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>17.0</VCProjectVersion>
