@@ -1,0 +1,3 @@
+[submodule "EngineInterface"]
+	path = EngineInterface
+	url = https://github.com/MoAgilah/EngineInterface
