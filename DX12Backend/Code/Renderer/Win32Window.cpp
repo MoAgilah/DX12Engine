@@ -1,40 +1,66 @@
 #include "Win32Window.h"
 
+#include <Utilities/Guards.h>
+
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
 
-static LRESULT CALLBACK StaticWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
+static LRESULT CALLBACK StaticWndProc(
+    HWND hwnd,
+    UINT msg,
+    WPARAM wParam,
+    LPARAM lParam)
 {
     Win32Window* window = nullptr;
 
     if (msg == WM_NCCREATE)
     {
-        CREATESTRUCTW* createStruct = reinterpret_cast<CREATESTRUCTW*>(lParam);
-        window = reinterpret_cast<Win32Window*>(createStruct->lpCreateParams);
+        const auto* createStruct =
+            reinterpret_cast<CREATESTRUCTW*>(lParam);
 
-        SetWindowLongPtr(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(window));
+        if (!createStruct)
+            return FALSE;
 
-        if (window)
-        {
-            window->SetWindowHandle(hwnd);
-        }
+        window = reinterpret_cast<Win32Window*>(
+            createStruct->lpCreateParams);
+
+        if (!window)
+            return FALSE;
+
+        SetLastError(0);
+
+        const LONG_PTR previousValue = SetWindowLongPtr(
+            hwnd,
+            GWLP_USERDATA,
+            reinterpret_cast<LONG_PTR>(window));
+
+        if (previousValue == 0 && GetLastError() != ERROR_SUCCESS)
+            return FALSE;
+
+        window->SetWindowHandle(hwnd);
     }
     else
     {
         window = reinterpret_cast<Win32Window*>(
-            GetWindowLongPtr(hwnd, GWLP_USERDATA));
+            GetWindowLongPtr(
+                hwnd,
+                GWLP_USERDATA));
     }
 
-    if (window)
+    if (!window)
     {
-        return static_cast<LRESULT>(
-            window->HandleMessage(
-                static_cast<unsigned int>(msg),
-                static_cast<unsigned long long>(wParam),
-                static_cast<long long>(lParam)));
+        return DefWindowProc(
+            hwnd,
+            msg,
+            wParam,
+            lParam);
     }
 
-    return DefWindowProc(hwnd, msg, wParam, lParam);
+    return static_cast<LRESULT>(
+        window->HandleMessage(
+            static_cast<unsigned int>(msg),
+            static_cast<unsigned long long>(wParam),
+            static_cast<long long>(lParam)));
 }
 
 bool Win32Window::Create(const Vector2f& screenDims, const std::string& title)
@@ -43,6 +69,8 @@ bool Win32Window::Create(const Vector2f& screenDims, const std::string& title)
     m_shouldClose = false;
 
     m_instanceHandle = GetModuleHandle(nullptr);
+    if (!CheckNotNull(m_instanceHandle, "Invalid Handle 'm_instanceHandle'"))
+        return false;
 
     std::wstring windowTitle(title.begin(), title.end());
     const wchar_t* className = L"MyEngineWindowClass";
@@ -59,8 +87,9 @@ bool Win32Window::Create(const Vector2f& screenDims, const std::string& title)
     {
         if (GetLastError() != ERROR_CLASS_ALREADY_EXISTS)
         {
-            MessageBoxA(nullptr, "RegisterClassEx failed.", nullptr, 0);
-            return false;
+            ThrowIfFalse(
+                GetLastError() == ERROR_CLASS_ALREADY_EXISTS,
+                "Failed to register window class");
         }
     }
 
@@ -88,11 +117,8 @@ bool Win32Window::Create(const Vector2f& screenDims, const std::string& title)
         m_instanceHandle,
         this);
 
-    if (!m_windowHandle)
-    {
-        MessageBoxA(nullptr, "CreateWindowEx failed.", nullptr, 0);
+    if (!CheckNotNull(m_windowHandle, "Invalid Handle 'm_windowHandle'"))
         return false;
-    }
 
     ShowWindow(m_windowHandle, SW_SHOW);
     UpdateWindow(m_windowHandle);
@@ -123,12 +149,12 @@ bool Win32Window::ShouldClose() const
 
 void Win32Window::Close()
 {
-    if (m_windowHandle)
-    {
-        m_shouldClose = true;
-        DestroyWindow(m_windowHandle);
-        m_windowHandle = nullptr;
-    }
+    if (!m_windowHandle)
+        return;
+
+    m_shouldClose = true;
+    DestroyWindow(m_windowHandle);
+    m_windowHandle = nullptr;
 }
 
 void* Win32Window::GetNativeHandle()
